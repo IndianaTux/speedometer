@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPS Speedometer</title>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #020617;
+      padding: 2rem;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .speed {
+      font-size: 4rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+    }
+
+    .unit {
+      font-size: 1.2rem;
+      color: #94a3b8;
+    }
+
+    .secondary {
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      color: #cbd5f5;
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+
+    .error {
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="unit">Current Speed</div>
+    <div class="speed" id="speed">0.0</div>
+    <div class="unit">km/h</div>
+
+    <div class="secondary" id="mph">0.0 mph</div>
+    <div class="status" id="status">Waiting for GPS…</div>
+  </div>
+
+  <script>
+    const speedEl = document.getElementById("speed");
+    const mphEl = document.getElementById("mph");
+    const statusEl = document.getElementById("status");
+
+    if (!("geolocation" in navigator)) {
+      statusEl.textContent = "Geolocation not supported";
+      statusEl.classList.add("error");
+    } else {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          const speedMS = pos.coords.speed; // meters per second
+
+          if (speedMS === null) {
+            statusEl.textContent = "Speed unavailable (start moving)";
+            return;
+          }
+
+          const speedKmh = speedMS * 3.6;
+          const speedMph = speedMS * 2.23694;
+
+          speedEl.textContent = speedKmh.toFixed(1);
+          mphEl.textContent = `${speedMph.toFixed(1)} mph`;
+
+          statusEl.textContent =
+            `Accuracy ±${pos.coords.accuracy.toFixed(0)} m`;
+        },
+        (err) => {
+          statusEl.textContent = err.message;
+          statusEl.classList.add("error");
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 10000
+        }
+      );
+    }
+  </script>
+
+</body>
+</html>
