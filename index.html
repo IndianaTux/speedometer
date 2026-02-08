@@ -1,110 +1,243 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GPS Speedometer</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS RPM Calculator</title>
 
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: system-ui, sans-serif;
       background: #0f172a;
       color: #e5e7eb;
       margin: 0;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      padding: 1rem;
     }
 
     .card {
+      max-width: 420px;
+      margin: auto;
       background: #020617;
-      padding: 2rem;
+      padding: 1.5rem;
       border-radius: 16px;
-      width: 100%;
-      max-width: 320px;
-      text-align: center;
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
 
-    .speed {
-      font-size: 4rem;
-      font-weight: 700;
-      margin: 0.5rem 0;
+    h1 {
+      font-size: 1.2rem;
+      text-align: center;
+      margin-bottom: 1rem;
     }
 
-    .unit {
-      font-size: 1.2rem;
+    select, input {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: none;
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+    }
+
+    label {
+      font-size: 0.85rem;
       color: #94a3b8;
     }
 
-    .secondary {
-      margin-top: 0.5rem;
-      font-size: 1rem;
-      color: #cbd5f5;
+    .speed {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+
+    .unit {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 1rem;
+    }
+
+    .gear {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .gear:last-child {
+      border-bottom: none;
     }
 
     .status {
       margin-top: 1rem;
       font-size: 0.9rem;
       color: #94a3b8;
-    }
-
-    .error {
-      color: #f87171;
+      text-align: center;
     }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <div class="unit">Current Speed</div>
-    <div class="speed" id="speed">0.0</div>
-    <div class="unit">km/h</div>
+<div class="card">
+  <h1>GPS-Based RPM Calculator</h1>
 
-    <div class="secondary" id="mph">0.0 mph</div>
-    <div class="status" id="status">Waiting for GPS…</div>
-  </div>
+  <label>Vehicle</label>
+  <select id="carSelect"></select>
 
-  <script>
-    const speedEl = document.getElementById("speed");
-    const mphEl = document.getElementById("mph");
-    const statusEl = document.getElementById("status");
+  <label>Final Drive Ratio</label>
+  <input id="finalDrive" type="number" step="0.01" value="3.73">
 
-    if (!("geolocation" in navigator)) {
-      statusEl.textContent = "Geolocation not supported";
-      statusEl.classList.add("error");
-    } else {
-      navigator.geolocation.watchPosition(
-        (pos) => {
-          const speedMS = pos.coords.speed; // meters per second
+  <label>Tire Size (e.g. 245/40R18)</label>
+  <input id="tireSize" type="text" value="245/40R18">
 
-          if (speedMS === null) {
-            statusEl.textContent = "Speed unavailable (start moving)";
-            return;
-          }
+  <div class="speed" id="speed">0.0</div>
+  <div class="unit">km/h</div>
 
-          const speedKmh = speedMS * 3.6;
-          const speedMph = speedMS * 2.23694;
+  <div id="gears"></div>
 
-          speedEl.textContent = speedKmh.toFixed(1);
-          mphEl.textContent = `${speedMph.toFixed(1)} mph`;
+  <div class="status" id="status">Waiting for GPS…</div>
+</div>
 
-          statusEl.textContent =
-            `Accuracy ±${pos.coords.accuracy.toFixed(0)} m`;
-        },
-        (err) => {
-          statusEl.textContent = err.message;
-          statusEl.classList.add("error");
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 10000
-        }
-      );
-    }
-  </script>
+<script>
+/* ===========================
+   CAR DATA
+   =========================== */
+
+const cars = {
+  "My Car A": {
+    gears: [3.82, 2.20, 1.52, 1.22, 1.02, 0.84]
+  },
+  "My Car B": {
+    gears: [3.50, 2.14, 1.36, 1.00, 0.82, 0.64, 0.50]
+  }
+};
+
+/* ===========================
+   STATE
+   =========================== */
+
+let selectedCar;
+let currentSpeedKmh = 0;
+
+/* ===========================
+   ELEMENTS
+   =========================== */
+
+const carSelect = document.getElementById("carSelect");
+const gearsDiv = document.getElementById("gears");
+const speedEl = document.getElementById("speed");
+const statusEl = document.getElementById("status");
+const finalDriveInput = document.getElementById("finalDrive");
+const tireSizeInput = document.getElementById("tireSize");
+
+/* ===========================
+   UI SETUP
+   =========================== */
+
+Object.keys(cars).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  carSelect.appendChild(opt);
+});
+
+selectedCar = cars[carSelect.value];
+buildGearDisplay();
+
+/* ===========================
+   EVENT LISTENERS
+   =========================== */
+
+carSelect.addEventListener("change", () => {
+  selectedCar = cars[carSelect.value];
+  buildGearDisplay();
+  updateRPMs();
+});
+
+finalDriveInput.addEventListener("input", updateRPMs);
+tireSizeInput.addEventListener("input", updateRPMs);
+
+/* ===========================
+   TIRE CALCULATION
+   =========================== */
+
+function tireCircumferenceMeters(tire) {
+  // Example: 245/40R18
+  const match = tire.match(/(\d+)\/(\d+)R(\d+)/);
+  if (!match) return null;
+
+  const widthMm = parseFloat(match[1]);
+  const aspect = parseFloat(match[2]) / 100;
+  const rimIn = parseFloat(match[3]);
+
+  const sidewallMm = widthMm * aspect;
+  const diameterMm =
+    (rimIn * 25.4) + (sidewallMm * 2);
+
+  return Math.PI * (diameterMm / 1000);
+}
+
+/* ===========================
+   RPM CALCULATION
+   =========================== */
+
+function calculateRPM(speedKmh, gearRatio) {
+  const finalDrive = parseFloat(finalDriveInput.value);
+  const circumference = tireCircumferenceMeters(tireSizeInput.value);
+
+  if (!finalDrive || !circumference || speedKmh <= 0) return 0;
+
+  const wheelRPM =
+    (speedKmh * 1000 / 60) / circumference;
+
+  return wheelRPM * gearRatio * finalDrive;
+}
+
+/* ===========================
+   GEAR DISPLAY
+   =========================== */
+
+function buildGearDisplay() {
+  gearsDiv.innerHTML = "";
+  selectedCar.gears.forEach((ratio, index) => {
+    const row = document.createElement("div");
+    row.className = "gear";
+    row.innerHTML = `
+      <div>Gear ${index + 1}</div>
+      <div id="gear-${index}">— RPM</div>
+    `;
+    gearsDiv.appendChild(row);
+  });
+}
+
+function updateRPMs() {
+  selectedCar.gears.forEach((ratio, index) => {
+    const rpm = calculateRPM(currentSpeedKmh, ratio);
+    document.getElementById(`gear-${index}`).textContent =
+      rpm > 0 ? `${Math.round(rpm)} RPM` : "— RPM";
+  });
+}
+
+/* ===========================
+   GPS SPEED
+   =========================== */
+
+if ("geolocation" in navigator) {
+  navigator.geolocation.watchPosition(
+    pos => {
+      if (pos.coords.speed == null) return;
+
+      currentSpeedKmh = pos.coords.speed * 3.6;
+      speedEl.textContent = currentSpeedKmh.toFixed(1);
+      updateRPMs();
+
+      statusEl.textContent =
+        `Accuracy ±${pos.coords.accuracy.toFixed(0)} m`;
+    },
+    err => statusEl.textContent = err.message,
+    { enableHighAccuracy: true, maximumAge: 1000 }
+  );
+}
+</script>
 
 </body>
 </html>
+
